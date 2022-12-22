@@ -3,7 +3,7 @@
   "displayName": "Splunk highlighter for YAML files",
   "description": "",
   "version": "0.0.1",
-  "publisher": "bierner",
+  "publisher": "sanjay900",
   "license": "MIT",
   "repository": {
     "url": "https://github.com/sanjay900/vscode-yaml-splunk-highlighter.git"
