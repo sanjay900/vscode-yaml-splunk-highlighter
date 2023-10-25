@@ -8,7 +8,7 @@
 	],
 	"repository": {
 		"superjs-code-block": {
-			"begin": "(?<=^search: )(>)",
+			"begin": "(?<=^(search|definition): )(>)",
 			"name": "markup.fenced_code.block.markdown",
 			"end": "^(\\w+)(:)",
 			"beginCaptures": {
