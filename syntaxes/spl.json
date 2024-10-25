@@ -1,0 +1,41 @@
+{
+	"fileTypes": [],
+	"injectionSelector": "L:source.js -function -string.template",
+	"patterns": [
+		{
+			"include": "#js.spl.codeblock"
+		}
+	],
+	"repository": {
+		"js.spl.codeblock": {
+			"begin": "spl`",
+			"name": "splunk.template.js",
+			"end": "(?<!\\\\)`",
+			"beginCaptures": {
+				"0": {
+					"name": "entity.name.operator.custom-literal"
+				}
+			},
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.definition.string.template.end.js"
+				}
+			},
+			"patterns": [
+				{
+					"contentName": "meta.embedded.block.splunk",
+					"patterns": [
+						{
+							"include": "source.splunk_search"
+						}
+					]
+				},
+				{
+					"name": "entity.name.function.splunk_search",
+					"match": "\\`.+?\\`"
+				}
+			]
+		}
+	},
+	"scopeName": "js.spl.codeblock"
+}
