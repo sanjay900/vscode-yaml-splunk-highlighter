@@ -54,7 +54,22 @@
           "meta.embedded.block.splunk": "splunk_search"
         }
       }
-    ]
+    ],
+    "configuration": {
+      "title": "Splunk YAML Highlighter",
+      "properties": {
+        "vscode-yaml-splunk-highlighter.pythonPath": {
+          "type": "string",
+          "default": "",
+          "description": "Python executable used to generate consolidation eval previews. Leave empty to use a project .venv, venv, or python3."
+        },
+        "vscode-yaml-splunk-highlighter.searchPackage": {
+          "type": "string",
+          "default": "CSA_Package",
+          "description": "Saved-search package variant to use for full SPL previews."
+        }
+      }
+    }
   },
   "dependencies": {  },
   "scripts": {

@@ -1,46 +1,50 @@
 import * as vscode from 'vscode';
 
-/**
- * CodelensProvider
- */
+export const previewEvalCommand = 'vscode-yaml-splunk-highlighter.previewConsolidationEval';
+export const previewFullSearchCommand = 'vscode-yaml-splunk-highlighter.previewFullSearch';
+
 export class CodelensProvider implements vscode.CodeLensProvider {
-
-	private codeLenses: vscode.CodeLens[] = [];
-	private regex: RegExp;
-	private _onDidChangeCodeLenses: vscode.EventEmitter<void> = new vscode.EventEmitter<void>();
-	public readonly onDidChangeCodeLenses: vscode.Event<void> = this._onDidChangeCodeLenses.event;
-
-	constructor() {
-		this.regex = /search: >/g;
-
-		vscode.workspace.onDidChangeConfiguration((_) => {
-			this._onDidChangeCodeLenses.fire();
-		});
-		if (vscode.workspace.workspaceFolders) {
-			console.log(vscode.workspace.workspaceFolders[0])
+	public provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] {
+		if (document.languageId !== 'yaml') {
+			return [];
 		}
-	}
 
-	public provideCodeLenses(document: vscode.TextDocument, token: vscode.CancellationToken): vscode.CodeLens[] | Thenable<vscode.CodeLens[]> {
-		this.codeLenses = [];
-		const regex = new RegExp(this.regex);
-		const text = document.getText();
-		let matches;
-		while ((matches = regex.exec(text)) !== null) {
-			const line = document.lineAt(document.positionAt(matches.index).line);
-			this.codeLenses.push(new vscode.CodeLens(line.range));
+		const lines = document.getText().split(/\r?\n/);
+		const searchLine = lines.findIndex(line => /^search\s*:/.test(line));
+		if (searchLine < 0) {
+			return [];
 		}
-		return this.codeLenses;
-	}
 
-	public resolveCodeLens(codeLens: vscode.CodeLens, token: vscode.CancellationToken) {
-		codeLens.command = {
-			title: "Run on splunk instance",
-			tooltip: "Tooltip provided by sample extension",
-			command: "vscode-yaml-splunk-highlighter.codelensAction",
-			arguments: ["Argument 1", false]
+		const lensLine = this.getLensLine(lines, searchLine);
+		const position = new vscode.Position(lensLine, 0);
+		const range = new vscode.Range(position, position);
+		const codeLenses = [new vscode.CodeLens(range)];
+		codeLenses[0].command = {
+			title: 'Show full SPL',
+			command: previewFullSearchCommand,
+			arguments: [document.uri]
 		};
-		return codeLens;
+
+		const consolidationLine = lines.find(line => /^consolidation\s*:/.test(line));
+		const consolidationValue = consolidationLine?.replace(/^consolidation\s*:\s*/, '').trim().toLowerCase();
+		if (consolidationValue && !['false', 'null', '[]'].includes(consolidationValue)) {
+			const evalCodeLens = new vscode.CodeLens(range);
+			evalCodeLens.command = {
+				title: 'Show generated eval',
+				command: previewEvalCommand,
+				arguments: [document.uri]
+			};
+			codeLenses.push(evalCodeLens);
+		}
+		return codeLenses;
+	}
+
+	private getLensLine(lines: string[], searchLine: number): number {
+		for (let line = searchLine + 1; line < lines.length; line++) {
+			if (/^[A-Za-z_][\w.-]*\s*:/.test(lines[line])) {
+				return line;
+			}
+		}
+		return lines.length - 1;
 	}
 }
-

@@ -3,6 +3,9 @@
 	"injectionSelector": "L:source.yaml - entity.name.tag.yaml",
 	"patterns": [
 		{
+			"include": "#inline-code"
+		},
+		{
 			"include": "#folded-code-block"
 		},
 		{
@@ -10,6 +13,24 @@
 		}
 	],
 	"repository": {
+		"inline-code": {
+			"begin": "^(search|definition)(:)( )(?![>|'\"])(?=.)",
+			"end": "$",
+			"contentName": "meta.embedded.block.superjs",
+			"beginCaptures": {
+				"1": {
+					"name": "entity.name.tag.yaml"
+				},
+				"2": {
+					"name": "punctuation.separator.key-value.mapping.yaml"
+				}
+			},
+			"patterns": [
+				{
+					"include": "source.splunk_search"
+				}
+			]
+		},
 		"folded-code-block": {
 			"begin": "(?<=^(search|definition): )(>)",
 			"name": "markup.fenced_code.block.markdown",
