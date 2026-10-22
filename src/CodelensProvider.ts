@@ -2,6 +2,9 @@ import * as vscode from 'vscode';
 
 export const previewEvalCommand = 'vscode-yaml-splunk-highlighter.previewConsolidationEval';
 export const previewFullSearchCommand = 'vscode-yaml-splunk-highlighter.previewFullSearch';
+export const previewEvalTestCommand = 'vscode-yaml-splunk-highlighter.previewEvalTest';
+export const previewSigmaEvalCommand = 'vscode-yaml-splunk-highlighter.previewSigmaEval';
+export const previewSigmaFullSearchCommand = 'vscode-yaml-splunk-highlighter.previewSigmaFullSearch';
 
 export class CodelensProvider implements vscode.CodeLensProvider {
 	public provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] {
@@ -10,6 +13,28 @@ export class CodelensProvider implements vscode.CodeLensProvider {
 		}
 
 		const lines = document.getText().split(/\r?\n/);
+		if (this.isSigmaRule(document, lines)) {
+			const detectionLine = lines.findIndex(line => /^detection\s*:/.test(line));
+			if (detectionLine < 0) {
+				return [];
+			}
+			const position = new vscode.Position(this.getLensLine(lines, detectionLine), 0);
+			const range = new vscode.Range(position, position);
+			const fullSearch = new vscode.CodeLens(range);
+			fullSearch.command = {
+				title: 'Show full SPL',
+				command: previewSigmaFullSearchCommand,
+				arguments: [document.uri]
+			};
+			const generatedEval = new vscode.CodeLens(range);
+			generatedEval.command = {
+				title: 'Show generated eval',
+				command: previewSigmaEvalCommand,
+				arguments: [document.uri]
+			};
+			return [fullSearch, generatedEval];
+		}
+
 		const searchLine = lines.findIndex(line => /^search\s*:/.test(line));
 		if (searchLine < 0) {
 			return [];
@@ -35,6 +60,15 @@ export class CodelensProvider implements vscode.CodeLensProvider {
 				arguments: [document.uri]
 			};
 			codeLenses.push(evalCodeLens);
+			if (consolidationValue !== 'true') {
+				const testCodeLens = new vscode.CodeLens(range);
+				testCodeLens.command = {
+					title: 'Show eval test SPL',
+					command: previewEvalTestCommand,
+					arguments: [document.uri]
+				};
+				codeLenses.push(testCodeLens);
+			}
 		}
 		return codeLenses;
 	}
@@ -46,5 +80,13 @@ export class CodelensProvider implements vscode.CodeLensProvider {
 			}
 		}
 		return lines.length - 1;
+	}
+
+	private isSigmaRule(document: vscode.TextDocument, lines: string[]): boolean {
+		const pathParts = document.uri.fsPath.split(/[\\/]/);
+		return pathParts.includes('sigma') &&
+			pathParts.includes('rules') &&
+			lines.some(line => /^logsource\s*:/.test(line)) &&
+			lines.some(line => /^detection\s*:/.test(line));
 	}
 }

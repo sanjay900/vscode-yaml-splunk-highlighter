@@ -14,7 +14,10 @@ import {
 import {
 	CodelensProvider,
 	previewEvalCommand,
-	previewFullSearchCommand
+	previewEvalTestCommand,
+	previewFullSearchCommand,
+	previewSigmaEvalCommand,
+	previewSigmaFullSearchCommand
 } from './CodelensProvider';
 
 const previewScheme = 'splunk-consolidation-eval';
@@ -46,10 +49,10 @@ class EvalPreviewContentProvider implements TextDocumentContentProvider {
 	}
 }
 
-function findPreviewScript(sourcePath: string): { root: string; script: string } | undefined {
+function findPreviewScript(sourcePath: string, scriptName: string): { root: string; script: string } | undefined {
 	let directory = path.dirname(sourcePath);
 	while (true) {
-		const script = path.join(directory, 'utils', 'preview_consolidation_eval.py');
+		const script = path.join(directory, 'utils', scriptName);
 		if (existsSync(script)) {
 			return { root: directory, script };
 		}
@@ -67,17 +70,12 @@ function runPreview(
 	script: string,
 	sourcePath: string,
 	cwd: string,
-	fullSearch: boolean,
-	packageName: string
+	args: string[]
 ): Promise<string> {
 	return new Promise((resolve, reject) => {
 		execFile(
 			pythonPath,
-			[
-				script,
-				sourcePath,
-				...(fullSearch ? ['--full-search', '--package', packageName] : [])
-			],
+			[script, sourcePath, ...args],
 			{ cwd, encoding: 'utf8', maxBuffer: 10 * 1024 * 1024, timeout: 120000 },
 			(error, stdout, stderr) => {
 				if (error) {
@@ -103,10 +101,19 @@ function isWithinDirectory(filePath: string, directory: string): boolean {
 export function activate(context: ExtensionContext): void {
 	const codelensProvider = new CodelensProvider();
 	const previewProvider = new EvalPreviewContentProvider();
-	const showPreview = async (sourceUri: Uri, fullSearch: boolean): Promise<void> => {
-		const preview = findPreviewScript(sourceUri.fsPath);
+	const showPreview = async (
+		sourceUri: Uri,
+		kind: 'eval' | 'full-spl' | 'eval-test' | 'sigma-eval' | 'sigma-full-spl'
+	): Promise<void> => {
+		const isSigma = kind.startsWith('sigma-');
+		const fullSearch = kind.endsWith('full-spl');
+		const testEval = kind === 'eval-test';
+		const preview = findPreviewScript(
+			sourceUri.fsPath,
+			isSigma ? 'preview_sigma_search.py' : 'preview_consolidation_eval.py'
+		);
 		if (!preview) {
-			await window.showErrorMessage('Could not find utils/preview_consolidation_eval.py in this project.');
+			await window.showErrorMessage(`Could not find the ${isSigma ? 'Sigma' : 'consolidation'} SPL preview helper in this project.`);
 			return;
 		}
 
@@ -122,24 +129,28 @@ export function activate(context: ExtensionContext): void {
 		}
 
 		const configuredPythonPath = workspace.getConfiguration('vscode-yaml-splunk-highlighter').get<string>('pythonPath', '').trim();
-		const packageName = workspace.getConfiguration('vscode-yaml-splunk-highlighter').get<string>('searchPackage', 'CSA_Package').trim();
+		const configuration = workspace.getConfiguration('vscode-yaml-splunk-highlighter');
+		const packageName = configuration.get<string>('searchPackage', 'CSA_Package').trim();
+		const sigmaBackendMode = configuration.get<string>('sigmaBackendMode', 'raw').trim();
 		const localPythonPaths = process.platform === 'win32'
 			? [path.join(preview.root, '.venv', 'Scripts', 'python.exe'), path.join(preview.root, 'venv', 'Scripts', 'python.exe')]
 			: [path.join(preview.root, '.venv', 'bin', 'python'), path.join(preview.root, 'venv', 'bin', 'python')];
 		const pythonPath = configuredPythonPath || localPythonPaths.find(existsSync) || 'python3';
+		const args = isSigma
+			? ['--mode', fullSearch ? 'full' : 'eval', '--backend-mode', sigmaBackendMode]
+			: (fullSearch || testEval ? [testEval ? '--test-eval' : '--full-search', '--package', packageName] : []);
 		try {
 			const content = await runPreview(
 				pythonPath,
 				preview.script,
 				sourceUri.fsPath,
 				preview.root,
-				fullSearch,
-				packageName
+				args
 			);
 			const previewUri = previewProvider.createDocument(
 				sourceUri,
 				content,
-				fullSearch ? 'full-search' : 'generated-eval'
+				`${isSigma ? 'sigma-' : ''}${testEval ? 'eval-test' : fullSearch ? 'full-search' : 'generated-eval'}`
 			);
 			const document = await workspace.openTextDocument(previewUri);
 			if ((await languages.getLanguages()).includes('splunk_search')) {
@@ -148,7 +159,7 @@ export function activate(context: ExtensionContext): void {
 			await window.showTextDocument(document, { preview: false, viewColumn: ViewColumn.Beside });
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			await window.showErrorMessage(`Could not generate ${fullSearch ? 'full SPL' : 'consolidation eval'}: ${message}`);
+			await window.showErrorMessage(`Could not generate ${testEval ? 'eval test SPL' : fullSearch ? 'full SPL' : 'generated eval'}: ${message}`);
 		}
 	};
 
@@ -156,7 +167,10 @@ export function activate(context: ExtensionContext): void {
 		languages.registerCodeLensProvider({ language: 'yaml' }, codelensProvider),
 		workspace.registerTextDocumentContentProvider(previewScheme, previewProvider),
 		workspace.onDidCloseTextDocument(document => previewProvider.deleteDocument(document.uri)),
-		commands.registerCommand(previewEvalCommand, (sourceUri: Uri) => showPreview(sourceUri, false)),
-		commands.registerCommand(previewFullSearchCommand, (sourceUri: Uri) => showPreview(sourceUri, true))
+		commands.registerCommand(previewEvalCommand, (sourceUri: Uri) => showPreview(sourceUri, 'eval')),
+		commands.registerCommand(previewFullSearchCommand, (sourceUri: Uri) => showPreview(sourceUri, 'full-spl')),
+		commands.registerCommand(previewEvalTestCommand, (sourceUri: Uri) => showPreview(sourceUri, 'eval-test')),
+		commands.registerCommand(previewSigmaEvalCommand, (sourceUri: Uri) => showPreview(sourceUri, 'sigma-eval')),
+		commands.registerCommand(previewSigmaFullSearchCommand, (sourceUri: Uri) => showPreview(sourceUri, 'sigma-full-spl'))
 	);
 }

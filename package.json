@@ -2,7 +2,7 @@
   "name": "vscode-yaml-splunk-highlighter",
   "displayName": "Splunk highlighter for YAML files",
   "description": "",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "publisher": "sanjay900",
   "license": "MIT",
   "repository": {
@@ -67,6 +67,12 @@
           "type": "string",
           "default": "CSA_Package",
           "description": "Saved-search package variant to use for full SPL previews."
+        },
+        "vscode-yaml-splunk-highlighter.sigmaBackendMode": {
+          "type": "string",
+          "enum": ["raw", "tstats"],
+          "default": "raw",
+          "description": "Sigma backend search mode for full SPL and generated eval previews."
         }
       }
     }
